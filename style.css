@@ -1,0 +1,116 @@
+/* --- Reset & Basic Setup --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box; /* 更直观的盒模型 */
+}
+
+html {
+    font-size: 16px; /* 设置根字体大小，方便使用 rem 单位 */
+    scroll-behavior: smooth; /* 平滑滚动效果 */
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif; /* 优先使用系统默认字体，加入常见中文字体 */
+    line-height: 1.7; /* 增加行高提高可读性 */
+    color: #333; /* 主要文字颜色，避免纯黑 */
+    background-color: #f8f9fa; /* 非常浅的灰色背景，比纯白更柔和 */
+    display: flex;
+    flex-direction: column; /* 使页脚能固定在底部 */
+    min-height: 100vh; /* 确保 body 至少占满整个视口高度 */
+    -webkit-font-smoothing: antialiased; /* 抗锯齿，使字体更平滑 (Chrome, Safari) */
+    -moz-osx-font-smoothing: grayscale; /* 抗锯齿 (Firefox) */
+}
+
+/* --- Layout: Container --- */
+.container {
+    width: 90%; /* 在小屏幕上使用百分比宽度 */
+    max-width: 1140px; /* 设置内容最大宽度 */
+    margin-left: auto; /* 自动外边距实现水平居中 */
+    margin-right: auto;
+    padding-left: 15px; /* 容器内边距 */
+    padding-right: 15px;
+}
+
+/* --- Header --- */
+.site-header {
+    background-color: #ffffff; /* 白色背景 */
+    padding: 1rem 0; /* 上下内边距 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); /* 添加微妙的底部阴影增加层次感 */
+    z-index: 10; /* 确保页眉在内容之上 */
+    position: sticky; /* 可选：使页眉滚动时固定在顶部 */
+    top: 0;
+}
+
+.site-header .logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #212529; /* 深灰色标题 */
+}
+
+/* --- Main Content --- */
+.site-main {
+    flex-grow: 1; /* 让主内容区域占据剩余空间，将页脚推到底部 */
+    padding: 3rem 0; /* 主内容区域的上下内边距 */
+}
+
+.content-area {
+    background-color: #ffffff; /* 内容区域可选白色背景 */
+    padding: 2rem; /* 内容区域内边距 */
+    border-radius: 8px; /* 轻微圆角 */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.07); /* 内容区域更明显的阴影 */
+}
+
+.content-area h1 {
+    font-size: 2rem; /* 标题字体大小 */
+    margin-bottom: 1rem; /* 标题下外边距 */
+    color: #111; /* 标题颜色 */
+    font-weight: 600; /* 标题字重 */
+}
+
+.content-area p {
+    margin-bottom: 1rem; /* 段落下外边距 */
+    color: #555; /* 段落文字颜色，比主色稍浅 */
+}
+
+.content-area code {
+    background-color: #e9ecef;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 0.9em;
+}
+
+/* --- Footer --- */
+.site-footer {
+    background-color: #e9ecef; /* 页脚用稍深的背景 */
+    color: #6c757d; /* 页脚文字颜色 */
+    padding: 1.5rem 0;
+    text-align: center;
+    font-size: 0.9rem; /* 页脚文字稍小 */
+    margin-top: auto; /* 配合 flex-grow 将页脚固定在底部 */
+}
+
+/* --- Responsive Adjustments (Example) --- */
+@media (max-width: 768px) {
+    html {
+        font-size: 15px; /* 在小屏幕上稍微减小基础字号 */
+    }
+
+    .site-main {
+        padding: 2rem 0;
+    }
+
+    .content-area h1 {
+        font-size: 1.8rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        width: 95%; /* 在非常小的屏幕上，容器宽度更宽 */
+    }
+    .content-area {
+        padding: 1.5rem;
+    }
+}

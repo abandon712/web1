@@ -3,149 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的网站</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f9f9f9;
-            color: #333;
-            line-height: 1.6;
-            overflow-x: hidden; /* 防止侧边栏展开时出现水平滚动条 */
-        }
-        header {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid #ddd;
-        }
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: -200px; /* 默认收起状态，隐藏在左侧 */
-            width: 200px;
-            height: 100%;
-            background-color: #f4f4f4; /* 浅灰色背景 */
-            transition: all 0.3s ease; /* 平滑过渡效果 */
-            box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            z-index: 999; /* 确保侧边栏在最顶层 */
-        }
-        .sidebar.open {
-            left: 0; /* 展开时显示在左侧 */
-        }
-        .sidebar a {
-            display: block;
-            margin: 15px 0;
-            text-decoration: none;
-            color: #333;
-            font-weight: bold;
-        }
-        .sidebar a:hover {
-            color: #007BFF;
-        }
-        .content {
-            margin-left: 220px; /* 给侧边栏留出空间 */
-            padding: 20px;
-            max-width: 1200px;
-            transition: margin-left 0.3s ease; /* 平滑过渡效果 */
-        }
-        .window-container {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            margin-top: 20px;
-        }
-        .window {
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            width: 30%;
-            height: 200px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-        }
-        .window a {
-            text-decoration: none;
-            color: #007BFF;
-            font-weight: bold;
-        }
-        footer {
-            text-align: center;
-            padding: 10px 0;
-            border-top: 1px solid #ddd;
-            margin-top: 20px;
-            font-size: 0.9em;
-            color: #777;
-        }
-        /* 按钮样式 */
-        .open-sidebar-btn {
-            position: fixed;
-            top: 50%;
-            transform: translateY(-50%);
-            right: 20px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            cursor: pointer;
-            border-radius: 5px;
-            font-size: 16px;
-            transition: background-color 0.3s ease;
-        }
-        .open-sidebar-btn:hover {
-            background-color: #0056b3;
-        }
-    </style>
+    <meta name="description" content="一个干净、高端的空白网站起点">
+    <title>我的新网站</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 可以在这里引入自定义字体，例如 Google Fonts -->
+    <!-- <link rel="preconnect" href="https://fonts.googleapis.com"> -->
+    <!-- <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin> -->
+    <!-- <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700&display=swap" rel="stylesheet"> -->
 </head>
 <body>
-    <header>
-        <h1>？</h1>
+
+    <header class="site-header">
+        <div class="container">
+            <!-- 页眉区域：可以放 Logo 或 站点标题 -->
+            <div class="logo">网站标题/Logo</div>
+            <!-- 导航菜单可以放在这里 -->
+            <!-- <nav> ... </nav> -->
+        </div>
     </header>
 
-    <!-- 侧边栏 -->
-    <div class="sidebar" id="sidebar">
-        <a href="#home">首页</a>
-        <a href="#link1">链接 1</a>
-        <a href="#link2">链接 2</a>
-        <a href="#link3">链接 3</a>
-    </div>
+    <main class="site-main">
+        <div class="container content-area">
+            <!-- 主要内容区域：这里是你添加具体内容的地方 -->
+            <h1>欢迎来到您的空白网站</h1>
+            <p>这是一个干净、现代化的起点。您可以在 <code>.content-area</code> 这个区域内开始添加您的内容，例如文本、图片、组件等。</p>
+            <p>编辑 <code>index.html</code> 添加结构，编辑 <code>style.css</code> 添加样式。</p>
+            <!-- 在此添加你的内容 -->
 
-    <!-- 内容区域 -->
-    <div class="content" id="content">
-        <section id="home">
-            <h2>首页</h2>
-            <div class="window-container">
-                <div class="window"><a href="#link1">链接 1</a></div>
-                <div class="window"><a href="#link2">链接 2</a></div>
-                <div class="window"><a href="#link3">链接 3</a></div>
-            </div>
-        </section>
-    </div>
+        </div>
+    </main>
 
-    <!-- 打开侧边栏按钮 -->
-    <button class="open-sidebar-btn" onclick="toggleSidebar()">☰</button>
-
-    <footer>
-        <p>&copy; 2023 我的网站</p>
+    <footer class="site-footer">
+        <div class="container">
+            <!-- 页脚区域：版权信息、少量链接等 -->
+            <p>© 2023 您的网站名称. 保留所有权利.</p>
+        </div>
     </footer>
 
-    <script>
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const content = document.getElementById('content');
-
-            if (sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
-                content.style.marginLeft = '20px'; // 收起时移除侧边栏宽度
-            } else {
-                sidebar.classList.add('open');
-                content.style.marginLeft = '220px'; // 展开时添加侧边栏宽度
-            }
-        }
-    </script>
+    <!-- 如果需要，可以在这里引入 JavaScript 文件 -->
+    <!-- <script src="script.js"></script> -->
 </body>
 </html>
