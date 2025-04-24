@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Replica - ECharts</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入 Font Awesome 图标库 (需要网络连接) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <!-- 确保 images 文件夹和 logo.png 文件存在于 index.html 同目录下 -->
+                <img src="images/logo.png" alt="Logo">
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <!-- 给每个链接添加 data-target 属性，用于 JS 切换 -->
+                    <li class="active"><a href="#" data-target="home-content"><i class="fas fa-home fa-fw"></i><span>首页</span></a></li>
+                    <li><a href="#" data-target="business-query-content"><i class="fas fa-briefcase fa-fw"></i><span>业务查询</span><i class="fas fa-chevron-down arrow"></i></a></li>
+                    <li><a href="#" data-target="official-account-content"><i class="fas fa-bullhorn fa-fw"></i><span>公众号</span><i class="fas fa-chevron-down arrow"></i></a></li>
+                    <li><a href="#" data-target="unified-entry-content"><i class="fas fa-sync fa-fw"></i><span>统一进件</span></a></li>
+                    <li><a href="#" data-target="channel-content"><i class="fas fa-network-wired fa-fw"></i><span>渠道</span><i class="fas fa-chevron-down arrow"></i></a></li>
+                    <li><a href="#" data-target="system-tools-content"><i class="fas fa-tools fa-fw"></i><span>系统工具</span></a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper">
+            <!-- Top Header -->
+            <header class="top-header">
+                 <div class="header-left">
+                    <button class="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <!-- header-title 会通过 JS 根据侧边栏点击动态改变 -->
+                    <div class="header-title">首页</div>
+                    <div class="tabs">
+                        <span class="tab active">首页 <i class="fas fa-times"></i></span>
+                        <span class="tab">风控 <i class="fas fa-times"></i></span>
+                        <span class="tab">全景查询 <i class="fas fa-times"></i></span>
+                        <span class="tab">统一进件 <i class="fas fa-times"></i></span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button><i class="fas fa-expand"></i></button>
+                    <button><i class="fas fa-user-circle"></i> <i class="fas fa-chevron-down"></i></button>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="content-area">
+                <!-- ==================== 首页内容 (默认显示) ==================== -->
+                <!-- 这个 div 的 ID ("home-content") 需要和 script.js 中 data-target 匹配 -->
+                <div class="page-content active-content" id="home-content">
+                    <!-- Stats Cards Row -->
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-icon icon-blue">
+                                <!-- 使用 Font Awesome 图标，并尝试用 CSS 变量控制旋转 -->
+                                <i class="fas fa-shoe-prints fa-rotate-by" style="--fa-rotate-angle: -30deg;"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">Daily Pv</span>
+                                <span class="stat-value">4,320</span>
+                            </div>
+                        </div>
+                         <div class="stat-card">
+                            <div class="stat-icon icon-cyan">
+                                <i class="fas fa-shoe-prints fa-flip-horizontal"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">Daily Ip</span>
+                                <span class="stat-value">1,751</span>
+                            </div>
+                        </div>
+                         <div class="stat-card">
+                            <div class="stat-icon icon-red">
+                                 <i class="fas fa-shoe-prints"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">Weekly Pv</span>
+                                <span class="stat-value">5,290</span>
+                            </div>
+                        </div>
+                         <div class="stat-card">
+                            <div class="stat-icon icon-teal">
+                                <i class="fas fa-shoe-prints fa-flip-horizontal fa-rotate-by" style="--fa-rotate-angle: 30deg;"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">Weekly Ip</span>
+                                <span class="stat-value">7,597</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Line Chart Row -->
+                    <div class="chart-row">
+                        <div class="chart-container large-chart">
+                            <!-- ECharts Line Chart Container -->
+                            <!-- 确保这个 div 的 ID 是 lineChart 且无拼写错误 -->
+                            <div id="lineChart" style="width: 100%; height: 320px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Charts Row -->
+                    <div class="chart-row">
+                        <div class="chart-container small-chart">
+                             <!-- ECharts Radar Chart Container -->
+                            <!-- 确保这个 div 的 ID 是 radarChart 且无拼写错误 -->
+                            <div id="radarChart" style="width: 100%; height: 230px;"></div>
+                        </div>
+                        <div class="chart-container small-chart">
+                             <!-- ECharts Pie Chart Container -->
+                             <!-- 确保这个 div 的 ID 是 pieChart 且无拼写错误 -->
+                             <div id="pieChart" style="width: 100%; height: 230px;"></div>
+                        </div>
+                        <div class="chart-container small-chart">
+                             <!-- ECharts Bar Chart Container -->
+                             <!-- 确保这个 div 的 ID 是 barChart 且无拼写错误 -->
+                             <div id="barChart" style="width: 100%; height: 230px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- ==================== 首页内容结束 ==================== -->
+
+                <!-- ==================== 其他页面占位内容 (默认隐藏) ==================== -->
+                 <!-- 这些 div 的 ID 需要和侧边栏 data-target 属性匹配 -->
+                <div class="page-content" id="business-query-content">
+                    <h1>业务查询</h1>
+                    <p>这里是业务查询模块的内容区域。</p>
+                    <!-- 在这里添加查询表单、结果表格等 -->
+                </div>
+
+                <div class="page-content" id="official-account-content">
+                    <h1>公众号</h1>
+                    <p>这里是公众号管理模块的内容区域。</p>
+                    <!-- 在这里添加图文消息管理、用户管理等 -->
+                </div>
+
+                <div class="page-content" id="unified-entry-content">
+                    <h1>统一进件</h1>
+                    <p>这里是统一进件模块的内容区域。</p>
+                    <!-- 在这里添加进件流程、状态跟踪等 -->
+                </div>
+
+                <div class="page-content" id="channel-content">
+                    <h1>渠道</h1>
+                    <p>这里是渠道管理模块的内容区域。</p>
+                    <!-- 在这里添加渠道列表、数据分析等 -->
+                </div>
+
+                <div class="page-content" id="system-tools-content">
+                    <h1>系统工具</h1>
+                    <p>这里是系统工具模块的内容区域。</p>
+                    <!-- 在这里添加日志查看、参数配置等 -->
+                </div>
+                <!-- ==================== 其他页面占位内容结束 ==================== -->
+
+            </main>
+        </div>
+    </div>
+
+    <!-- 引入 ECharts (需要网络连接) -->
+    <!-- 放在 script.js 前面 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- 引入你自己的 JS 文件 -->
+    <script src="script.js"></script>
+</body>
+</html>
