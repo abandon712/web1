@@ -1,172 +1,206 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Replica - ECharts</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- 引入 Font Awesome 图标库 (需要网络连接) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<meta charset="utf-8">
+<title>Schwarzschild Black Hole – RK4 & Bloom (Procedural Stars)</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;}
+#tip{position:fixed;top:10px;left:10px;font:14px/18px sans-serif;color:#ccc;
+     background:rgba(0,0,0,.45);padding:6px 10px;border-radius:4px; z-index: 100;}
+#full{position:fixed;top:10px;right:10px;font:23px/23px sans-serif;color:#aaa;
+      cursor:pointer;user-select:none; z-index: 100;}
+</style>
 </head>
 <body>
-    <div class="dashboard-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-logo">
-                <!-- 确保 images 文件夹和 logo.png 文件存在于 index.html 同目录下 -->
-                <img src="images/logo.png" alt="Logo">
-            </div>
-            <nav class="sidebar-nav">
-                <ul>
-                    <!-- 给每个链接添加 data-target 属性，用于 JS 切换 -->
-                    <li class="active"><a href="#" data-target="home-content"><i class="fas fa-home fa-fw"></i><span>首页</span></a></li>
-                    <li><a href="#" data-target="business-query-content"><i class="fas fa-briefcase fa-fw"></i><span>业务查询</span><i class="fas fa-chevron-down arrow"></i></a></li>
-                    <li><a href="#" data-target="official-account-content"><i class="fas fa-bullhorn fa-fw"></i><span>公众号</span><i class="fas fa-chevron-down arrow"></i></a></li>
-                    <li><a href="#" data-target="unified-entry-content"><i class="fas fa-sync fa-fw"></i><span>统一进件</span></a></li>
-                    <li><a href="#" data-target="channel-content"><i class="fas fa-network-wired fa-fw"></i><span>渠道</span><i class="fas fa-chevron-down arrow"></i></a></li>
-                    <li><a href="#" data-target="system-tools-content"><i class="fas fa-tools fa-fw"></i><span>系统工具</span></a></li>
-                </ul>
-            </nav>
-        </aside>
+<div id="tip">拖拽旋转 · 滚轮缩放 · GUI 调参</div>
+<div id="full">⤢</div>
 
-        <!-- Main Content Wrapper -->
-        <div class="main-wrapper">
-            <!-- Top Header -->
-            <header class="top-header">
-                 <div class="header-left">
-                    <button class="menu-toggle"><i class="fas fa-bars"></i></button>
-                    <!-- header-title 会通过 JS 根据侧边栏点击动态改变 -->
-                    <div class="header-title">首页</div>
-                    <div class="tabs">
-                        <span class="tab active">首页 <i class="fas fa-times"></i></span>
-                        <span class="tab">风控 <i class="fas fa-times"></i></span>
-                        <span class="tab">全景查询 <i class="fas fa-times"></i></span>
-                        <span class="tab">统一进件 <i class="fas fa-times"></i></span>
-                    </div>
-                </div>
-                <div class="header-right">
-                    <button><i class="fas fa-expand"></i></button>
-                    <button><i class="fas fa-user-circle"></i> <i class="fas fa-chevron-down"></i></button>
-                </div>
-            </header>
+<!-- 1. Import Map: 定义模块位置 -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+<!-- dat.gui 仍然使用普通脚本加载 -->
+<script src="https://unpkg.com/dat.gui@0.7.9/build/dat.gui.min.js"></script>
 
-            <!-- Main Content Area -->
-            <main class="content-area">
-                <!-- ==================== 首页内容 (默认显示) ==================== -->
-                <!-- 这个 div 的 ID ("home-content") 需要和 script.js 中 data-target 匹配 -->
-                <div class="page-content active-content" id="home-content">
-                    <!-- Stats Cards Row -->
-                    <div class="stats-row">
-                        <div class="stat-card">
-                            <div class="stat-icon icon-blue">
-                                <!-- 使用 Font Awesome 图标，并尝试用 CSS 变量控制旋转 -->
-                                <i class="fas fa-shoe-prints fa-rotate-by" style="--fa-rotate-angle: -30deg;"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-label">Daily Pv</span>
-                                <span class="stat-value">4,320</span>
-                            </div>
-                        </div>
-                         <div class="stat-card">
-                            <div class="stat-icon icon-cyan">
-                                <i class="fas fa-shoe-prints fa-flip-horizontal"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-label">Daily Ip</span>
-                                <span class="stat-value">1,751</span>
-                            </div>
-                        </div>
-                         <div class="stat-card">
-                            <div class="stat-icon icon-red">
-                                 <i class="fas fa-shoe-prints"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-label">Weekly Pv</span>
-                                <span class="stat-value">5,290</span>
-                            </div>
-                        </div>
-                         <div class="stat-card">
-                            <div class="stat-icon icon-teal">
-                                <i class="fas fa-shoe-prints fa-flip-horizontal fa-rotate-by" style="--fa-rotate-angle: 30deg;"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-label">Weekly Ip</span>
-                                <span class="stat-value">7,597</span>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Line Chart Row -->
-                    <div class="chart-row">
-                        <div class="chart-container large-chart">
-                            <!-- ECharts Line Chart Container -->
-                            <!-- 确保这个 div 的 ID 是 lineChart 且无拼写错误 -->
-                            <div id="lineChart" style="width: 100%; height: 320px;"></div>
-                        </div>
-                    </div>
+<!-- 2. 主脚本使用 type="module" -->
+<script type="module">
+// 3. 导入所有需要的 Three.js 组件
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
 
-                    <!-- Bottom Charts Row -->
-                    <div class="chart-row">
-                        <div class="chart-container small-chart">
-                             <!-- ECharts Radar Chart Container -->
-                            <!-- 确保这个 div 的 ID 是 radarChart 且无拼写错误 -->
-                            <div id="radarChart" style="width: 100%; height: 230px;"></div>
-                        </div>
-                        <div class="chart-container small-chart">
-                             <!-- ECharts Pie Chart Container -->
-                             <!-- 确保这个 div 的 ID 是 pieChart 且无拼写错误 -->
-                             <div id="pieChart" style="width: 100%; height: 230px;"></div>
-                        </div>
-                        <div class="chart-container small-chart">
-                             <!-- ECharts Bar Chart Container -->
-                             <!-- 确保这个 div 的 ID 是 barChart 且无拼写错误 -->
-                             <div id="barChart" style="width: 100%; height: 230px;"></div>
-                        </div>
-                    </div>
-                </div>
-                <!-- ==================== 首页内容结束 ==================== -->
+// ---------- 基础设置 ----------
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(0,3,8);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.LinearEncoding; // 后期处理流程需要线性输出
+document.body.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
 
-                <!-- ==================== 其他页面占位内容 (默认隐藏) ==================== -->
-                 <!-- 这些 div 的 ID 需要和侧边栏 data-target 属性匹配 -->
-                <div class="page-content" id="business-query-content">
-                    <h1>业务查询</h1>
-                    <p>这里是业务查询模块的内容区域。</p>
-                    <!-- 在这里添加查询表单、结果表格等 -->
-                </div>
+// **修复**: 不再使用贴图，直接设置黑色背景
+scene.background = new THREE.Color(0x000000);
 
-                <div class="page-content" id="official-account-content">
-                    <h1>公众号</h1>
-                    <p>这里是公众号管理模块的内容区域。</p>
-                    <!-- 在这里添加图文消息管理、用户管理等 -->
-                </div>
+// ---------- 全局 Uniforms ----------
+const uni = {
+    iTime:    {value:0},
+    res:      {value:new THREE.Vector2(innerWidth,innerHeight)},
+    camPos:   {value:new THREE.Vector3()},
+    M:        {value:1.0},
+    diskLum:  {value:1.6},
+    bloomStr: {value:1.2},
+    noiseSpd: {value:0.4}
+};
 
-                <div class="page-content" id="unified-entry-content">
-                    <h1>统一进件</h1>
-                    <p>这里是统一进件模块的内容区域。</p>
-                    <!-- 在这里添加进件流程、状态跟踪等 -->
-                </div>
+// ---------- 主 Shader (RK4) ----------
+// **修复**: 修改了 Shader，用算法生成星星，不再需要 sky 贴图
+const frag = `
+precision highp float;
+uniform float iTime, M, diskLum, noiseSpd;
+uniform vec2  res;
+uniform vec3  camPos;
+#define PI 3.1415926535
 
-                <div class="page-content" id="channel-content">
-                    <h1>渠道</h1>
-                    <p>这里是渠道管理模块的内容区域。</p>
-                    <!-- 在这里添加渠道列表、数据分析等 -->
-                </div>
+// 噪声/哈希函数
+float hash(vec3 p){p=fract(p*.3183+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float n3D(vec3 p){
+    vec3 i=floor(p);vec3 f=fract(p);
+    float a=hash(i),b=hash(i+vec3(1,0,0)),c=hash(i+vec3(0,1,0)),d=hash(i+vec3(1,1,0));
+    float e=hash(i+vec3(0,0,1)),f1=hash(i+vec3(1,0,1)),g=hash(i+vec3(0,1,1)),h=hash(i+vec3(1,1,1));
+    vec3 u=f*f*(3.-2.*f);
+    return mix(mix(mix(a,b,u.x),mix(c,d,u.x),u.y),
+               mix(mix(e,f1,u.x),mix(g,h,u.x),u.y),u.z);
+}
 
-                <div class="page-content" id="system-tools-content">
-                    <h1>系统工具</h1>
-                    <p>这里是系统工具模块的内容区域。</p>
-                    <!-- 在这里添加日志查看、参数配置等 -->
-                </div>
-                <!-- ==================== 其他页面占位内容结束 ==================== -->
+// 程序化生成星空
+vec3 getStars(vec3 dir) {
+    float stars = n3D(dir * 300.0);
+    stars = pow(stars, 15.0); // 使亮点更稀疏、更尖锐
+    return vec3(stars * 0.8);
+}
 
-            </main>
-        </div>
-    </div>
+// 吸积盘颜色
+vec3 diskCol(vec3 p, vec3 rd){
+    float r=length(p.xz); if(r<2.3*M||r>6.0*M||abs(p.y)>0.07) return vec3(0);
+    float T=1./pow(r,1.5);
+    vec3 base=mix(vec3(1.0,0.4,0.1),vec3(1.0,0.9,0.5),T);
+    float noise=n3D(vec3(r*4., p.y*40., iTime*noiseSpd));
+    vec3 tang=normalize(vec3(-p.z,0.,p.x));
+    float dop=1./(1.-dot(rd,tang)*0.7);
+    return base*pow(dop,3.)*diskLum*(0.6+0.4*noise);
+}
 
-    <!-- 引入 ECharts (需要网络连接) -->
-    <!-- 放在 script.js 前面 -->
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <!-- 引入你自己的 JS 文件 -->
-    <script src="script.js"></script>
+// 光线追踪
+vec3 geodesic(vec3 ro, vec3 rd) {
+    vec3 p = ro;
+    vec3 v = rd;
+    for(int i = 0; i < 70; i++) {
+        float r2 = dot(p, p);
+        if(r2 < (2.0*M)*(2.0*M) * 1.05) return vec3(0.0);
+        if(r2 > 100.0 * 100.0) break;
+        
+        vec3 accel = -1.5 * M / r2 / sqrt(r2) * p;
+        v += accel * 0.1;
+        p += v * 0.1;
+    }
+    return normalize(v);
+}
+
+void main(){
+    vec2 uv=(gl_FragCoord.xy*2.-res.xy)/res.y;
+    vec3 ro=camPos;
+    vec3 ww=normalize(-ro);
+    vec3 uu=normalize(cross(vec3(0.,1.,0.),ww));
+    vec3 vv=cross(ww,uu);
+    vec3 rd=normalize(uu*uv.x+vv*uv.y+ww);
+
+    vec3 bentDir=geodesic(ro,rd);
+    
+    vec3 col = vec3(0.0);
+    if (bentDir != vec3(0.0)) {
+        col = getStars(bentDir); // 使用函数生成星星
+    }
+
+    float t=-ro.y/rd.y;
+    if(t>0.0){
+        vec3 p=ro+rd*t;
+        col+=diskCol(p,rd);
+    }
+
+    float b=length(cross(ro,rd));
+    float ring=smoothstep(2.6 * M + 0.5, 2.6 * M - 0.1, b);
+    col+=vec3(1.3,0.9,0.4)*ring*1.8;
+
+    gl_FragColor=vec4(col,1.);
+}`;
+
+// ---------- ShaderMaterial ----------
+// **修复**: uniforms 中不再需要 sky
+const mat=new THREE.ShaderMaterial({
+    fragmentShader:frag,
+    vertexShader:`void main(){gl_Position=vec4(position,1.);}`,
+    uniforms: uni
+});
+const quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),mat);
+scene.add(quad);
+
+// ---------- 后期处理 ----------
+const composer=new EffectComposer(renderer);
+composer.setSize(innerWidth,innerHeight);
+
+const renderPass=new RenderPass(scene,camera);
+const bloomPass=new UnrealBloomPass(
+    new THREE.Vector2(innerWidth,innerHeight),
+    uni.bloomStr.value,
+    0.8,
+    0.85
+);
+const gammaShader=new ShaderPass(GammaCorrectionShader);
+composer.addPass(renderPass);composer.addPass(bloomPass);composer.addPass(gammaShader);
+
+// ---------- GUI ----------
+const gui=new dat.GUI();
+gui.add(uni.M,'value',0.5,3,0.1).name('黑洞质量 M');
+gui.add(uni.diskLum,'value',0,3,0.1).name('吸积盘亮度');
+gui.add(uni.bloomStr,'value',0,3,0.1).name('Bloom 强度')
+       .onChange(v=>bloomPass.strength=v);
+gui.add(uni.noiseSpd,'value',0,1,0.05).name('盘面噪声速度');
+
+// ---------- 全屏 ----------
+document.getElementById('full').onclick=()=>{document.fullscreenElement?document.exitFullscreen():document.body.requestFullscreen();};
+
+// ---------- 渲染循环 ----------
+function tick(t){
+    requestAnimationFrame(tick);
+    uni.iTime.value=t/1000;
+    uni.camPos.value.copy(camera.position);
+    controls.update();
+    composer.render();
+}
+tick(0);
+
+// ---------- 窗口大小调整 ----------
+addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+    composer.setSize(innerWidth,innerHeight);
+    uni.res.value.set(innerWidth,innerHeight);
+});
+
+</script>
 </body>
 </html>
