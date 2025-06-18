@@ -3,38 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>实时Kerr黑洞渲染器 (WebGL)</title>
+<title>实时Kerr黑洞渲染器 (优化版)</title>
 <style>
     body, html {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background-color: #000;
-        color: #888;
-        font-family: monospace;
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        overflow: hidden; background-color: #000; color: #ccc; font-family: monospace;
     }
-    canvas {
-        display: block;
-        width: 100%;
-        height: 100%;
-    }
+    canvas { display: block; width: 100%; height: 100%; }
     #info {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        padding: 10px;
-        background: rgba(0,0,0,0.5);
-        border-radius: 5px;
-        max-width: 350px;
+        position: absolute; top: 10px; left: 10px; padding: 10px;
+        background: rgba(0,0,0,0.6); border-radius: 5px; max-width: 380px;
+        border: 1px solid #444;
     }
+    #info p { margin: 5px 0; }
+    #info strong { color: #fff; }
 </style>
 </head>
 <body>
     <div id="info">
-        <p><strong>实时物理渲染的Kerr黑洞</strong></p>
-        <p>这并非预渲染动画。您的GPU正在为屏幕上的每个像素实时执行逆向光线追踪，通过RK4方法数值求解光子在Kerr时空中的测地线方程，并模拟相对论效应。</p>
+        <p><strong>实时物理渲染Kerr黑洞 (性能优化版)</strong></p>
+        <p>此版本已优化，可在大多数设备上运行。它仍然通过GPU实时执行光线追踪和物理计算，但降低了精度以换取性能。</p>
     </div>
     <canvas id="glCanvas"></canvas>
 
@@ -43,13 +31,13 @@
 // 主程序：WebGL设置与渲染循环
 // ========================================================================
 const canvas = document.getElementById('glCanvas');
-const gl = canvas.getContext('webgl');
+// 使用 antialias: false 可以进一步提升性能
+const gl = canvas.getContext('webgl', { antialias: false });
 
 if (!gl) {
-    alert('无法初始化WebGL。您的浏览器或设备可能不支持。');
+    document.getElementById('info').innerHTML = '<p style="color:red;">错误：无法初始化WebGL。您的浏览器或设备可能不支持。</p>';
 }
 
-// 顶点着色器：非常简单，只负责将2D平面铺满屏幕
 const vertexShaderSource = `
     attribute vec4 a_position;
     void main() {
@@ -58,60 +46,60 @@ const vertexShaderSource = `
 `;
 
 // ========================================================================
-// 片段着色器：核心物理模拟与渲染发生在这里
-// 这段GLSL代码完全符合您提出的所有算法要求
+// 片段着色器：核心物理模拟与渲染
 // ========================================================================
 const fragmentShaderSource = `
 #ifdef GL_ES
-precision highp float;
+precision mediump float; // 使用 mediump 代替 highp, 在很多移动设备上性能更好
 #endif
 
 #define PI 3.14159265359
 
-// Uniforms: 从JavaScript传入的变量
+// Uniforms
 uniform vec2 u_resolution;
 uniform float u_time;
 
-// --- 物理与渲染参数 ---
-const float M = 1.0;      // 黑洞质量 (归一化)
-const float a = 0.998;    // 自旋参数 (Gargantua的设定)
+// --- 物理参数 ---
+const float M = 1.0;
+const float a = 0.998;
 const float a2 = a * a;
 
-const int MAX_STEPS = 256;      // RK4积分步数 (越高越精确，也越慢)
-const float STEP_SIZE = 0.15;   // 积分步长
-const float MAX_DIST = 60.0;    // 光线逃逸距离
+// --- 性能优化：降低积分步数，增大步长 ---
+const int MAX_STEPS = 80;      // <<-- 关键优化点: 从 256 降至 80
+const float STEP_SIZE = 0.3;   // <<-- 关键优化点: 从 0.15 增至 0.3
+const float MAX_DIST = 60.0;
 
-const float DISK_R_IN = M + sqrt(M*M - a2); // 内边界: 最内稳定圆轨道(ISCO)
-const float DISK_R_OUT = 15.0;  // 吸积盘外边界
+const float DISK_R_IN = M + sqrt(M*M - a2);
+const float DISK_R_OUT = 15.0;
 
-// --- 辅助函数：Kerr度规分量 ---
+// --- 辅助函数 ---
 float delta(float r) { return r*r - 2.0*M*r + a2; }
 float rho2(float r, float cos_th) { return r*r + a2*cos_th*cos_th; }
 
-// --- 核心函数：测地线方程的导数 d(state)/d(lambda) ---
-// state = [t, r, theta, phi]
-vec4 geodesic_derivs(vec4 pos, vec3 p_conserved) {
+// --- 核心函数：测地线方程的导数 ---
+// 传入的 p_conserved 现在是 vec4, 第四个分量是theta动量的初始符号
+vec4 geodesic_derivs(vec4 pos, vec4 p_conserved) {
     float r = pos.y;
     float th = pos.z;
     float cos_th = cos(th);
     float sin_th = sin(th);
 
     float d = delta(r);
+    if (d < 1e-5) return vec4(0.0); // 防止在视界处除以零
     float rh2 = rho2(r, cos_th);
 
-    // 守恒量: E(能量), Lz(角动量), Q(卡特常数)
     float E = p_conserved.x;
     float Lz = p_conserved.y;
     float Q = p_conserved.z;
+    float p_th_sign = p_conserved.w; // <<-- Bug修复：获取正确的theta动量符号
 
-    // 从守恒量反解出 r 和 theta 方向的动量
     float P = E * (r*r + a2) - a * Lz;
     float R_sq = P*P - d * (Q + (Lz - a*E)*(Lz - a*E));
-    float R = -sqrt(max(0.0, R_sq)); // 负号因为光线从相机射向黑洞
-    float T_sq = Q - cos_th*cos_th * (a2 * (1.0 - E*E) + Lz*Lz / (sin_th*sin_th + 1e-9));
-    float T = -sqrt(max(0.0, T_sq)); // 初始theta动量决定符号
+    float R = -sqrt(max(0.0, R_sq));
 
-    // 坐标的导数
+    float T_sq = Q - cos_th*cos_th * (a2 * (1.0 - E*E) + Lz*Lz / (sin_th*sin_th + 1e-9));
+    float T = p_th_sign * sqrt(max(0.0, T_sq)); // <<-- Bug修复：使用正确的符号
+
     float dt_dlam = (a * (Lz - a*E*sin_th*sin_th) + (r*r+a2)*P/d) / rh2;
     float dr_dlam = R / rh2;
     float dth_dlam = T / rh2;
@@ -120,68 +108,58 @@ vec4 geodesic_derivs(vec4 pos, vec3 p_conserved) {
     return vec4(dt_dlam, dr_dlam, dth_dlam, dph_dlam);
 }
 
-
-// --- 着色函数：计算吸积盘颜色及相对论效应 ---
+// --- 着色函数 ---
 vec3 get_disk_color(vec4 pos, vec4 p_vec) {
     float r = pos.y;
     float phi = pos.w;
 
-    // 1. 盘面纹理 (程序化棋盘格，用于清晰展示扭曲)
     float checker = mod(floor(r * 1.5) + floor(phi * 6.0 / PI), 2.0);
     vec3 disk_base_color = mix(vec3(1.0, 0.6, 0.2), vec3(0.8, 0.3, 0.05), checker);
 
-    // 2. 相对论效应 (多普勒 & 引力红移)
-    // 吸积盘的轨道速度 (Keplerian)
-    float omega = M*M*M / (r*r*r*M*M*M + a*M*M*M); // 简化模型
-
-    // 观测到的光子能量 / 发射时的能量 = g
-    // g > 1: 蓝移 (朝向我们, 更亮)
-    // g < 1: 红移 (远离我们, 更暗)
-    float g = (p_vec.x - omega * p_vec.w) / sqrt(abs(1.0 - 2.0*M/r + omega*omega*r*r)); // 近似公式
-    
-    // 强度 I_obs ~ g^4
-    return disk_base_color * pow(g, 4.0);
+    // 相对论效应
+    float omega = M/(r*sqrt(r) + a); // 更精确的Keplerian轨道速度
+    float g = (p_vec.x - omega * p_vec.w) / sqrt(abs(1.0 - 2.0*M/r + omega*omega*r*r));
+    return disk_base_color * pow(max(0.0, g), 4.0);
 }
 
-
 void main() {
-    // --- 1. 设置相机和初始光线 ---
     vec2 uv = (2.0 * gl_FragCoord.xy - u_resolution.xy) / u_resolution.y;
 
-    // 相机位置 (Boyer-Lindquist坐标)
     float cam_r = 45.0;
     float cam_th = PI/2.0 - 0.08;
-    float cam_ph = u_time * 0.05; // 让相机缓慢转动
+    float cam_ph = u_time * 0.05;
 
-    // 建立相机坐标系
-    vec3 cam_fwd = normalize(vec3(sin(cam_th)*cos(cam_ph), cos(cam_th), sin(cam_th)*sin(cam_ph)));
-    vec3 cam_up = normalize(vec3(-cos(cam_th)*cos(cam_ph), sin(cam_th), -cos(cam_th)*sin(cam_ph)));
-    vec3 cam_right = cross(cam_fwd, cam_up);
+    vec3 cam_pos_cart = vec3(cam_r*sin(cam_th)*cos(cam_ph), cam_r*cos(cam_th), cam_r*sin(cam_th)*sin(cam_ph));
+    vec3 cam_fwd = -normalize(cam_pos_cart);
+    vec3 cam_up_guess = vec3(0.0,1.0,0.0);
+    vec3 cam_right = normalize(cross(cam_up_guess, cam_fwd));
+    vec3 cam_up = cross(cam_fwd, cam_right);
 
-    // 计算光线初始方向 (动量)
     vec3 ray_dir = normalize(cam_fwd + uv.x * cam_right + uv.y * cam_up);
     
-    // 计算守恒量 E, Lz, Q (这是Kerr光追的关键)
-    float E = 1.0;
-    float Lz = -ray_dir.z * cam_r * sin(cam_th);
-    float Q = pow(ray_dir.y * cam_r, 2.0);
-
-    vec3 p_conserved = vec3(E, Lz, Q);
+    // 计算守恒量
+    vec3 p_initial_cart = -ray_dir;
+    float p_r = dot(p_initial_cart, normalize(cam_pos_cart));
+    float p_th = dot(p_initial_cart, cam_up) * cam_r;
+    float p_ph = dot(p_initial_cart, cam_right) * cam_r * sin(cam_th);
     
-    // --- 2. 逆向光线追踪 (RK4积分) ---
+    float E = 1.0;
+    float Lz = p_ph;
+    float Q = p_th*p_th + cos(cam_th)*cos(cam_th)*(a2 + Lz*Lz/(sin(cam_th)*sin(cam_th)+1e-9));
+    
+    // Bug修复：打包theta动量的符号
+    vec4 p_conserved = vec4(E, Lz, Q, sign(p_th));
+    
+    // --- 逆向光线追踪 (RK4积分) ---
     vec4 pos = vec4(0.0, cam_r, cam_th, cam_ph);
-    vec3 final_color = vec3(0.0); // 初始为黑色背景
+    vec3 final_color = vec3(0.0);
     float r_horizon = M + sqrt(max(0.0, M*M - a2));
 
     for (int i=0; i < MAX_STEPS; ++i) {
         float r = pos.y;
-        float th = pos.z;
-        
-        // 检查终止条件
         if (r < r_horizon + 0.01) { final_color = vec3(0.0); break; }
         if (r > MAX_DIST) { break; }
 
-        // --- RK4 步进 ---
         vec4 k1 = geodesic_derivs(pos, p_conserved);
         vec4 k2 = geodesic_derivs(pos + 0.5 * STEP_SIZE * k1, p_conserved);
         vec4 k3 = geodesic_derivs(pos + 0.5 * STEP_SIZE * k2, p_conserved);
@@ -190,90 +168,45 @@ void main() {
         
         vec4 next_pos = pos + d_pos;
 
-        // --- 检查与吸积盘的交点 ---
-        if (pos.z >= PI/2.0 && next_pos.z < PI/2.0) { // 从上往下穿过
+        if ((pos.z - PI/2.0) * (next_pos.z - PI/2.0) < 0.0) {
             if (r > DISK_R_IN && r < DISK_R_OUT) {
                 final_color += get_disk_color(pos, k1);
             }
         }
-        if (pos.z <= PI/2.0 && next_pos.z > PI/2.0) { // 从下往上穿过
-            if (r > DISK_R_IN && r < DISK_R_OUT) {
-                // 这是看到盘的下表面
-                final_color += get_disk_color(pos, k1) * 0.5; // 下表面稍暗
-            }
-        }
-        
         pos = next_pos;
     }
     
-    // gamma校正和输出
     gl_FragColor = vec4(pow(final_color, vec3(1.0/2.2)), 1.0);
 }
 `;
 
-// --- WebGL 辅助函数 ---
-function createShader(gl, type, source) {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
-    if (success) { return shader; }
-    console.error(gl.getShaderInfoLog(shader));
-    gl.deleteShader(shader);
-}
-
-function createProgram(gl, vertexShader, fragmentShader) {
-    const program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
-    gl.linkProgram(program);
-    const success = gl.getProgramParameter(program, gl.LINK_STATUS);
-    if (success) { return program; }
-    console.error(gl.getProgramInfoLog(program));
-    gl.deleteProgram(program);
-}
-
-// --- 主执行流程 ---
-const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
-const program = createProgram(gl, vertexShader, fragmentShader);
-
-const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
-const timeUniformLocation = gl.getUniformLocation(program, "u_time");
-
-const positionBuffer = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-const positions = [-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1];
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-// --- 渲染循环 ---
+// --- 执行流程 (与之前相同) ---
+function createShader(gl, type, source) { const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader); if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader; console.error(gl.getShaderInfoLog(shader)); gl.deleteShader(shader); }
+function createProgram(gl, vs, fs) { const p = gl.createProgram(); gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p); if (gl.getProgramParameter(p, gl.LINK_STATUS)) return p; console.error(gl.getProgramInfoLog(p)); gl.deleteProgram(p); }
+const vs = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+const program = createProgram(gl, vs, fs);
+const posAttrLoc = gl.getAttribLocation(program, "a_position");
+const resUniLoc = gl.getUniformLocation(program, "u_resolution");
+const timeUniLoc = gl.getUniformLocation(program, "u_time");
+const posBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]), gl.STATIC_DRAW);
 function render(time) {
-    time *= 0.001; // convert to seconds
-
-    // 调整canvas大小以匹配显示大小
-    const displayWidth  = gl.canvas.clientWidth;
-    const displayHeight = gl.canvas.clientHeight;
-    if (gl.canvas.width  !== displayWidth || gl.canvas.height !== displayHeight) {
-        gl.canvas.width  = displayWidth;
-        gl.canvas.height = displayHeight;
-        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    time *= 0.001;
+    const dW = gl.canvas.clientWidth, dH = gl.canvas.clientHeight;
+    if (gl.canvas.width !== dW || gl.canvas.height !== dH) {
+        gl.canvas.width = dW; gl.canvas.height = dH; gl.viewport(0, 0, dW, dH);
     }
-
     gl.useProgram(program);
-    gl.enableVertexAttribArray(positionAttributeLocation);
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
-
-    // 传入uniforms
-    gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
-    gl.uniform1f(timeUniformLocation, time);
-
+    gl.enableVertexAttribArray(posAttrLoc);
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.vertexAttribPointer(posAttrLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform2f(resUniLoc, dW, dH);
+    gl.uniform1f(timeUniLoc, time);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
-
     requestAnimationFrame(render);
 }
-
 requestAnimationFrame(render);
 
 </script>
