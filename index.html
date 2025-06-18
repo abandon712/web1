@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>真实感史瓦西黑洞 v3.0 – 稳定与清晰版</title>
+<title>Schwarzschild Black Hole – RK4 & Bloom (Procedural Stars)</title>
 <style>
 html,body{margin:0;height:100%;overflow:hidden;background:#000;}
 #tip{position:fixed;top:10px;left:10px;font:14px/18px sans-serif;color:#ccc;
@@ -12,10 +12,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;}
 </style>
 </head>
 <body>
-<div id="tip">拖拽旋转 · 滚轮缩放 · GUI 调参 · 相机自动微旋</div>
+<div id="tip">拖拽旋转 · 滚轮缩放 · GUI 调参</div>
 <div id="full">⤢</div>
 
-<!-- 1. Import Map: 模块化加载 -->
+<!-- 1. Import Map: 定义模块位置 -->
 <script type="importmap">
 {
   "imports": {
@@ -24,10 +24,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;}
   }
 }
 </script>
-<!-- dat.gui -->
+<!-- dat.gui 仍然使用普通脚本加载 -->
 <script src="https://unpkg.com/dat.gui@0.7.9/build/dat.gui.min.js"></script>
 
-<!-- 2. 主脚本 -->
+
+<!-- 2. 主脚本使用 type="module" -->
 <script type="module">
 // 3. 导入所有需要的 Three.js 组件
 import * as THREE from 'three';
@@ -38,266 +39,167 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
 
-// =================================================================
-// 基础设置 (Scene, Camera, Renderer)
-// =================================================================
+// ---------- 基础设置 ----------
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 2000);
-camera.position.set(0, 3, 14); // 调整初始机位
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    powerPreference: "high-performance"
-});
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(0,3,8);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
 renderer.setSize(innerWidth, innerHeight);
-renderer.outputEncoding = THREE.LinearEncoding;
+renderer.outputEncoding = THREE.LinearEncoding; // 后期处理流程需要线性输出
 document.body.appendChild(renderer.domElement);
-
-// =================================================================
-// 轨道控制器 (OrbitControls)
-// =================================================================
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.05;
-controls.minDistance = 4;
-controls.maxDistance = 60;
-controls.autoRotate = true;
-controls.autoRotateSpeed = 0.3;
 
+// **修复**: 不再使用贴图，直接设置黑色背景
 scene.background = new THREE.Color(0x000000);
 
-// =================================================================
-// 全局 Uniforms
-// =================================================================
+// ---------- 全局 Uniforms ----------
 const uni = {
-    iTime:      { value: 0 },
-    res:        { value: new THREE.Vector2(innerWidth, innerHeight) },
-    camPos:     { value: new THREE.Vector3() },
-    M:          { value: 1.0 },
-    diskLum:    { value: 1.5 }, // *** 大幅降低默认亮度 ***
-    noiseSpd:   { value: 0.25 },
-    dopplerStr: { value: 0.9 },
+    iTime:    {value:0},
+    res:      {value:new THREE.Vector2(innerWidth,innerHeight)},
+    camPos:   {value:new THREE.Vector3()},
+    M:        {value:1.0},
+    diskLum:  {value:1.6},
+    bloomStr: {value:1.2},
+    noiseSpd: {value:0.4}
 };
 
-// =================================================================
-// 主着色器 (Fragment Shader) - 视觉核心
-// =================================================================
+// ---------- 主 Shader (RK4) ----------
+// **修复**: 修改了 Shader，用算法生成星星，不再需要 sky 贴图
 const frag = `
 precision highp float;
-
-// ---------------- Uniforms ----------------
-uniform float iTime, M, diskLum, noiseSpd, dopplerStr;
+uniform float iTime, M, diskLum, noiseSpd;
 uniform vec2  res;
 uniform vec3  camPos;
-
-// ---------------- 常量定义 ----------------
 #define PI 3.1415926535
-#define MAX_STEPS 70          
-#define MAX_DIST 100.0
-#define RS (2.0 * M)         
-#define ISCO_RADIUS (3.0 * RS) 
-#define HIT_DIST (RS * 1.01)
 
-// ---------------- 噪声函数 (FBM) ----------------
-float hash(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
-float noise(vec3 p){vec3 i=floor(p),f=fract(p),u=f*f*(3.0-2.0*f);return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),u.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),u.x),u.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),u.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),u.x),u.y),u.z);}
-float fbm(vec3 p,int o){float v=0.0,a=0.5;for(int i=0;i<o;i++){v+=a*noise(p);p*=2.0;a*=0.5;}return v;}
-
-// ---------------- 程序化星空 ----------------
-vec3 getStarfield(vec3 dir) {
-    vec3 color = vec3(0.0);
-    float stars = pow(fbm(dir * 400.0, 2), 20.0);
-    color += vec3(stars * 0.8);
-    float bright_stars = pow(fbm(dir * 70.0, 3), 25.0);
-    color += vec3(bright_stars);
-    return color;
+// 噪声/哈希函数
+float hash(vec3 p){p=fract(p*.3183+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float n3D(vec3 p){
+    vec3 i=floor(p);vec3 f=fract(p);
+    float a=hash(i),b=hash(i+vec3(1,0,0)),c=hash(i+vec3(0,1,0)),d=hash(i+vec3(1,1,0));
+    float e=hash(i+vec3(0,0,1)),f1=hash(i+vec3(1,0,1)),g=hash(i+vec3(0,1,1)),h=hash(i+vec3(1,1,1));
+    vec3 u=f*f*(3.-2.*f);
+    return mix(mix(mix(a,b,u.x),mix(c,d,u.x),u.y),
+               mix(mix(e,f1,u.x),mix(g,h,u.x),u.y),u.z);
 }
 
-// ---------------- 物理色彩映射 ----------------
-vec3 colormap(float t) {
-    t = pow(t, 1.5);
-    vec3 red   = vec3(1.0, 0.15, 0.0);
-    vec3 orange= vec3(1.0, 0.4, 0.0);
-    vec3 white = vec3(1.0, 0.9, 0.8);
-    return mix(red, orange, smoothstep(0.0, 0.5, t)) + 
-           mix(vec3(0.0), white, smoothstep(0.5, 0.8, t)) * 1.2;
+// 程序化生成星空
+vec3 getStars(vec3 dir) {
+    float stars = n3D(dir * 300.0);
+    stars = pow(stars, 15.0); // 使亮点更稀疏、更尖锐
+    return vec3(stars * 0.8);
 }
 
-// ---------------- 吸积盘颜色计算 ----------------
-vec3 getAccretionDiskColor(vec3 p, vec3 rd) {
-    float r = length(p.xz);
-    float outerRadius = RS * 8.0;
-    
-    // 关键修复：确保 falloff 在盘外是严格的 0.0
-    float falloff = smoothstep(outerRadius, outerRadius - 1.5, r) * 
-                    smoothstep(ISCO_RADIUS, ISCO_RADIUS + 0.2, r);
-    if (falloff < 0.001) return vec3(0.0); // 严格剪裁
-
-    float temp_t = 1.0 - smoothstep(ISCO_RADIUS, outerRadius, r);
-    vec3 baseColor = colormap(temp_t);
-    
-    float turbulence = fbm(vec3(r * 1.5, p.y * 30.0, iTime * noiseSpd), 3);
-    
-    vec3 tangent = normalize(vec3(-p.z, 0.0, p.x));
-    float doppler = 1.0 / (1.0 - dot(rd, tangent) * dopplerStr);
-    float dopplerEffect = pow(doppler, 4.0);
-    
-    return baseColor * (0.8 + 0.2 * turbulence) * dopplerEffect * diskLum * falloff;
+// 吸积盘颜色
+vec3 diskCol(vec3 p, vec3 rd){
+    float r=length(p.xz); if(r<2.3*M||r>6.0*M||abs(p.y)>0.07) return vec3(0);
+    float T=1./pow(r,1.5);
+    vec3 base=mix(vec3(1.0,0.4,0.1),vec3(1.0,0.9,0.5),T);
+    float noise=n3D(vec3(r*4., p.y*40., iTime*noiseSpd));
+    vec3 tang=normalize(vec3(-p.z,0.,p.x));
+    float dop=1./(1.-dot(rd,tang)*0.7);
+    return base*pow(dop,3.)*diskLum*(0.6+0.4*noise);
 }
 
-// ---------------- 物理核心: RK4 光线追踪 ----------------
-bool traceGeodesic(vec3 ro, vec3 rd, out vec3 bentDir) {
-    vec3 p = ro; vec3 v = rd; float dt = 0.1;
-    for(int i = 0; i < MAX_STEPS; i++) {
-        float r = length(p);
-        if (r < HIT_DIST) return false; // 落入黑洞
-        if (r > MAX_DIST) break;
+// 光线追踪
+vec3 geodesic(vec3 ro, vec3 rd) {
+    vec3 p = ro;
+    vec3 v = rd;
+    for(int i = 0; i < 70; i++) {
+        float r2 = dot(p, p);
+        if(r2 < (2.0*M)*(2.0*M) * 1.05) return vec3(0.0);
+        if(r2 > 100.0 * 100.0) break;
         
-        vec3 accel = -1.5 * RS * p / (r*r*r);
-        p += v * dt + 0.5 * accel * dt * dt;
-        vec3 accel_new = -1.5 * RS * p / (length(p)*length(p)*length(p));
-        v += 0.5 * (accel + accel_new) * dt; // Verlet integration is stable and fast
+        vec3 accel = -1.5 * M / r2 / sqrt(r2) * p;
+        v += accel * 0.1;
+        p += v * 0.1;
     }
-    bentDir = normalize(v);
-    return true; // 成功逃逸
+    return normalize(v);
 }
 
+void main(){
+    vec2 uv=(gl_FragCoord.xy*2.-res.xy)/res.y;
+    vec3 ro=camPos;
+    vec3 ww=normalize(-ro);
+    vec3 uu=normalize(cross(vec3(0.,1.,0.),ww));
+    vec3 vv=cross(ww,uu);
+    vec3 rd=normalize(uu*uv.x+vv*uv.y+ww);
 
-// ---------------- 主函数 (Main) - 返璞归真的渲染逻辑 ----------------
-void main() {
-    // 1. 计算相机射线
-    vec2 uv = (gl_FragCoord.xy * 2.0 - res.xy) / res.y;
-    vec3 ro = camPos;
-    vec3 ww = normalize(vec3(0.0) - ro);
-    vec3 uu = normalize(cross(vec3(0.0, 1.0, 0.0), ww));
-    vec3 vv = cross(ww, uu);
-    vec3 rd = normalize(uv.x * uu + uv.y * vv + ww * 2.0);
-
-    // 2. 进行引力光线追踪
-    vec3 bentDir;
-    bool escaped = traceGeodesic(ro, rd, bentDir);
-
-    vec3 finalColor = vec3(0.0);
-
-    if (escaped) {
-        // --- A. 如果光线逃逸 ---
-        // 步骤 A1: 绘制被引力透镜扭曲的背景（星空）
-        finalColor = getStarfield(bentDir);
-
-        // 步骤 A2: 在星空之上，累加被引力透镜看到的吸积盘（通常是盘的背面）
-        // 这里使用弯曲后的光线方向 `bentDir`
-        float t_lensed = -ro.y / bentDir.y;
-        if (t_lensed > 0.0) {
-             vec3 hitPoint_lensed = ro + bentDir * t_lensed;
-             finalColor += getAccretionDiskColor(hitPoint_lensed, bentDir);
-        }
-        
-        // 步骤 A3: 在所有背景之上，累加前景的吸积盘
-        // 这里使用原始的直线光线方向 `rd`
-        float t_direct = -ro.y / rd.y;
-        if (t_direct > 0.0) {
-            vec3 hitPoint_direct = ro + rd * t_direct;
-            finalColor += getAccretionDiskColor(hitPoint_direct, rd);
-        }
-
-        // 步骤 A4: 最后加上光子环
-        float b = length(cross(ro, rd));
-        float photonRingRadius = sqrt(27.0) * M;
-        float ring = smoothstep(photonRingRadius + 0.1, photonRingRadius, b) - 
-                     smoothstep(photonRingRadius, photonRingRadius - 0.1, b);
-        finalColor += vec3(1.0, 0.7, 0.3) * ring * 1.5;
+    vec3 bentDir=geodesic(ro,rd);
     
-    } else {
-        // --- B. 如果光线落入黑洞 ---
-        // 最终颜色就是纯黑。这是黑洞的阴影。
-        // 不再进行任何其他计算。
-        finalColor = vec3(0.0);
+    vec3 col = vec3(0.0);
+    if (bentDir != vec3(0.0)) {
+        col = getStars(bentDir); // 使用函数生成星星
     }
-    
-    gl_FragColor = vec4(finalColor, 1.0);
+
+    float t=-ro.y/rd.y;
+    if(t>0.0){
+        vec3 p=ro+rd*t;
+        col+=diskCol(p,rd);
+    }
+
+    float b=length(cross(ro,rd));
+    float ring=smoothstep(2.6 * M + 0.5, 2.6 * M - 0.1, b);
+    col+=vec3(1.3,0.9,0.4)*ring*1.8;
+
+    gl_FragColor=vec4(col,1.);
 }`;
 
-// =================================================================
-// 创建承载 Shader 的平面网格
-// =================================================================
-const mat = new THREE.ShaderMaterial({
-    fragmentShader: frag,
-    vertexShader: `void main(){ gl_Position = vec4(position, 1.0); }`,
+// ---------- ShaderMaterial ----------
+// **修复**: uniforms 中不再需要 sky
+const mat=new THREE.ShaderMaterial({
+    fragmentShader:frag,
+    vertexShader:`void main(){gl_Position=vec4(position,1.);}`,
     uniforms: uni
 });
-const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+const quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),mat);
 scene.add(quad);
 
-// =================================================================
-// 后期处理 (Post-Processing)
-// =================================================================
-const composer = new EffectComposer(renderer);
-composer.setSize(innerWidth, innerHeight);
+// ---------- 后期处理 ----------
+const composer=new EffectComposer(renderer);
+composer.setSize(innerWidth,innerHeight);
 
-const renderPass = new RenderPass(scene, camera);
-const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(innerWidth, innerHeight),
-    0.6,    // 辉光强度 (降低)
-    0.7,    // 辉光半径
-    0.95    // *** 关键: 提高辉光阈值，只有最亮的像素才发光 ***
+const renderPass=new RenderPass(scene,camera);
+const bloomPass=new UnrealBloomPass(
+    new THREE.Vector2(innerWidth,innerHeight),
+    uni.bloomStr.value,
+    0.8,
+    0.85
 );
-const gammaShader = new ShaderPass(GammaCorrectionShader);
+const gammaShader=new ShaderPass(GammaCorrectionShader);
+composer.addPass(renderPass);composer.addPass(bloomPass);composer.addPass(gammaShader);
 
-composer.addPass(renderPass);
-composer.addPass(bloomPass);
-composer.addPass(gammaShader);
+// ---------- GUI ----------
+const gui=new dat.GUI();
+gui.add(uni.M,'value',0.5,3,0.1).name('黑洞质量 M');
+gui.add(uni.diskLum,'value',0,3,0.1).name('吸积盘亮度');
+gui.add(uni.bloomStr,'value',0,3,0.1).name('Bloom 强度')
+       .onChange(v=>bloomPass.strength=v);
+gui.add(uni.noiseSpd,'value',0,1,0.05).name('盘面噪声速度');
 
-// =================================================================
-// GUI 控制面板 (dat.GUI)
-// =================================================================
-const gui = new dat.GUI();
-const f1 = gui.addFolder('黑洞物理参数');
-f1.add(uni.M, 'value', 0.5, 3, 0.05).name('质量 (M)');
-f1.open();
+// ---------- 全屏 ----------
+document.getElementById('full').onclick=()=>{document.fullscreenElement?document.exitFullscreen():document.body.requestFullscreen();};
 
-const f2 = gui.addFolder('吸积盘视觉');
-f2.add(uni.diskLum, 'value', 0.1, 4.0, 0.1).name('基础亮度'); // *** 调整范围 ***
-f2.add(uni.noiseSpd, 'value', 0, 1, 0.01).name('湍流速度');
-f2.add(uni.dopplerStr, 'value', 0.8, 1.0, 0.01).name('多普勒强度');
-f2.open();
-
-const f3 = gui.addFolder('后期与相机');
-f3.add(bloomPass, 'strength', 0, 2, 0.1).name('辉光强度');
-f3.add(bloomPass, 'radius', 0, 2, 0.05).name('辉光半径');
-f3.add(bloomPass, 'threshold', 0.85, 1, 0.01).name('辉光阈值');
-f3.add(controls, 'autoRotate').name('自动旋转');
-f3.open();
-
-// =================================================================
-// 全屏与窗口大小调整
-// =================================================================
-document.getElementById('full').onclick = () => {
-    document.fullscreenElement ? document.exitFullscreen() : document.body.requestFullscreen();
-};
-window.addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-    composer.setSize(innerWidth, innerHeight);
-    uni.res.value.set(innerWidth, innerHeight);
-});
-
-// =================================================================
-// 渲染循环 (Animation Loop)
-// =================================================================
-const clock = new THREE.Clock();
-function tick() {
+// ---------- 渲染循环 ----------
+function tick(t){
     requestAnimationFrame(tick);
-    const elapsedTime = clock.getElapsedTime();
-    
-    uni.iTime.value = elapsedTime;
+    uni.iTime.value=t/1000;
     uni.camPos.value.copy(camera.position);
-    
     controls.update();
     composer.render();
 }
-tick();
+tick(0);
+
+// ---------- 窗口大小调整 ----------
+addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+    composer.setSize(innerWidth,innerHeight);
+    uni.res.value.set(innerWidth,innerHeight);
+});
 
 </script>
 </body>
